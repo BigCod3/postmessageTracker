@@ -120,6 +120,15 @@
 			/* Individual token colors are set by prism.css and should generally be kept */
 		}
 		/* --- End added for Prism.js color/shadow fixes --- */
+
+		/* --- Added to remove specific token backgrounds from PrismJS (e.g., from prism-coy.css) --- */
+		li.listener-item pre.listener-code code[class*="language-"] .token.operator,
+		li.listener-item pre.listener-code code[class*="language-"] .token.entity,
+		li.listener-item pre.listener-code code[class*="language-"] .token.url {
+			background: transparent !important;
+			background-color: transparent !important; /* Belt and braces */
+		}
+		/* --- End specific token background removal --- */
         .duplicate-count {
             font-size: 10px;
             color: #99FF99;
