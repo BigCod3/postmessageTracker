@@ -94,6 +94,32 @@
 			border-radius: 3px;
             font-size: 11px;
 		}
+		/* --- Added for Prism.js code element wrapping --- */
+		li.listener-item pre.listener-code code.language-javascript {
+			display: block; /* Or inline-block, depending on desired layout with line numbers if any */
+			white-space: pre-wrap !important;
+			word-break: break-all !important; /* More aggressive, consider 'overflow-wrap: break-word;' if too aggressive */
+			/* Ensure padding/margin inside code doesn't conflict with pre's padding */
+			padding: 0; /* Reset padding if prism.css adds it to code elements directly */
+			margin: 0; /* Reset margin */
+			/* Color and background are inherited from pre or set by prism.css, usually no need to set here */
+		}
+		/* --- End added for Prism.js --- */
+
+		/* --- Added to fix Prism.js color/shadow issues on dark background --- */
+		li.listener-item pre.listener-code[class*="language-"] {
+			background: transparent !important; /* Use parent <pre> background */
+			/* text-shadow: none !important; /* Prism applies text-shadow to code/span tokens, not pre */
+		}
+		li.listener-item pre.listener-code code[class*="language-"] {
+			color: inherit !important; /* Inherit base color from parent <pre> for non-tokenized text */
+			text-shadow: none !important; /* Remove Prism's text shadow from base code text */
+		}
+		li.listener-item pre.listener-code code[class*="language-"] .token {
+			text-shadow: none !important; /* Remove Prism's text shadow from syntax tokens */
+			/* Individual token colors are set by prism.css and should generally be kept */
+		}
+		/* --- End added for Prism.js color/shadow fixes --- */
         .duplicate-count {
             font-size: 10px;
             color: #99FF99;
