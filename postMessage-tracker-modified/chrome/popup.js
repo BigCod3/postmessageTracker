@@ -117,7 +117,11 @@ function listListeners(listeners, tabUrl) {
 
 		const listenerCodeEl = document.createElement('pre');
         listenerCodeEl.className = 'listener-code';
-		listenerCodeEl.innerText = listener.listener || 'N/A Listener Code';
+        // listenerCodeEl.innerText = listener.listener || 'N/A Listener Code'; // Original line commented out/removed
+        const codeElement = document.createElement('code');
+        codeElement.className = 'language-javascript';
+        codeElement.textContent = listener.listener || 'N/A Listener Code';
+        listenerCodeEl.appendChild(codeElement);
 		el.appendChild(listenerCodeEl);
 
         if (entry.count > 1) {
@@ -181,6 +185,12 @@ function listListeners(listeners, tabUrl) {
 
 		x.appendChild(el);
 	});
+
+    if (uniqueListenersMap.size > 0) { // Or listeners.length > 0, depending on preference
+        if (typeof Prism !== 'undefined') {
+            Prism.highlightAll();
+        }
+    }
 }
 
 function escapeHtml(unsafe) {
