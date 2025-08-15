@@ -1,20 +1,42 @@
-var tab_listeners = {};
-var tab_push = {}, tab_lasturl = {};
-var selectedId = -1;
+// State containers. In MV3 the background runs as a service worker and can be
+// unloaded at any time, so the listener data must be persisted between runs.
+let tab_listeners = {};
+let tab_push = {}, tab_lasturl = {};
+let selectedId = -1;
+
+// Restore any previously stored state when the worker starts.
+chrome.storage.session.get(
+  { tab_listeners: {}, tab_push: {}, tab_lasturl: {}, selectedId: -1 },
+  (items) => {
+    tab_listeners = items.tab_listeners || {};
+    tab_push = items.tab_push || {};
+    tab_lasturl = items.tab_lasturl || {};
+    selectedId = items.selectedId || -1;
+
+    // If we already know which tab is active, update the badge immediately.
+    if (selectedId !== -1) {
+      refreshCount();
+    }
+  }
+);
+
+function saveState() {
+  chrome.storage.session.set({ tab_listeners, tab_push, tab_lasturl, selectedId });
+}
 // Removed activeDebuggingSession and related debugger logic
 
 function refreshCount() {
 	txt = tab_listeners[selectedId] ? tab_listeners[selectedId].rawListenerCount : 0;
-	chrome.tabs.get(selectedId, function() {
-		if (!chrome.runtime.lastError) {
-			chrome.browserAction.setBadgeText({"text": ''+txt, tabId: selectedId});
-			if(txt > 0) {
-				chrome.browserAction.setBadgeBackgroundColor({ color: [255, 0, 0, 255]});
-			} else {
-				chrome.browserAction.setBadgeBackgroundColor({ color: [0, 0, 255, 0] });
-			}
-		}
-	});
+        chrome.tabs.get(selectedId, function() {
+                if (!chrome.runtime.lastError) {
+                        chrome.action.setBadgeText({"text": ''+txt, tabId: selectedId});
+                        if(txt > 0) {
+                                chrome.action.setBadgeBackgroundColor({ color: [255, 0, 0, 255]});
+                        } else {
+                                chrome.action.setBadgeBackgroundColor({ color: [0, 0, 255, 0] });
+                        }
+                }
+        });
 }
 
 function logListener(data) {
@@ -55,18 +77,20 @@ chrome.runtime.onMessage.addListener(function(msg, sender, sendResponse) {
         if(!tab_listeners[tabId] || !tab_listeners[tabId].listeners) {
              tab_listeners[tabId] = { listeners: [], rawListenerCount: 0 };
         }
-		tab_listeners[tabId].listeners.push(msg);
+                tab_listeners[tabId].listeners.push(msg);
         tab_listeners[tabId].rawListenerCount++;
-		logListener(msg);
-	}
-	if(msg.pushState && tabId) { tab_push[tabId] = true; }
-	if(msg.changePage && tabId) {
-		delete tab_lasturl[tabId];
+                saveState();
+                logListener(msg);
+        }
+        if(msg.pushState && tabId) { tab_push[tabId] = true; saveState(); }
+        if(msg.changePage && tabId) {
+                delete tab_lasturl[tabId];
         if (tab_listeners[tabId]) {
             tab_listeners[tabId] = { listeners: [], rawListenerCount: 0 };
         }
-	}
-	if(msg.log) { /* console.log(msg.log); */ }
+        saveState();
+        }
+        if(msg.log) { /* console.log(msg.log); */ }
     else if (tabId) { // Only refresh if it's not a log-only message and tabId is valid
         refreshCount();
     }
@@ -76,16 +100,18 @@ chrome.tabs.onUpdated.addListener(function(tabId, props) {
 	if (props.status == "complete") {
 		if(tabId == selectedId) refreshCount();
 	} else if(props.status) {
-		if(tab_push[tabId]) { delete tab_push[tabId]; }
+                if(tab_push[tabId]) { delete tab_push[tabId]; saveState(); }
         else {
-			if(!tab_lasturl[tabId]) {
-				tab_listeners[tabId] = { listeners: [], rawListenerCount: 0 };
+                        if(!tab_lasturl[tabId]) {
+                                tab_listeners[tabId] = { listeners: [], rawListenerCount: 0 };
                 if(tabId == selectedId) refreshCount();
-			}
-		}
-	}
-	if(props.status == "loading") {
+                                saveState();
+                        }
+                }
+        }
+        if(props.status == "loading") {
         tab_lasturl[tabId] = true;
+        saveState();
     }
 });
 
@@ -93,15 +119,17 @@ chrome.tabs.onRemoved.addListener(function(tabId, removeInfo) {
     delete tab_listeners[tabId];
     delete tab_push[tabId];
     delete tab_lasturl[tabId];
+    saveState();
 });
 
 
 chrome.tabs.onActivated.addListener(function(activeInfo) {
-	selectedId = activeInfo.tabId;
+        selectedId = activeInfo.tabId;
     if(!tab_listeners[selectedId]) {
         tab_listeners[selectedId] = { listeners: [], rawListenerCount: 0 };
     }
-	refreshCount();
+        saveState();
+        refreshCount();
 });
 
 chrome.tabs.query({active: true, currentWindow: true}, function(tabs) {
@@ -110,16 +138,17 @@ chrome.tabs.query({active: true, currentWindow: true}, function(tabs) {
         if(!tab_listeners[selectedId]) {
             tab_listeners[selectedId] = { listeners: [], rawListenerCount: 0 };
         }
+        saveState();
         refreshCount();
     }
 });
 
-chrome.extension.onConnect.addListener(function(port) {
-	port.onMessage.addListener(function(msg) { // msg from popup is "get-stuff"
+chrome.runtime.onConnect.addListener(function(port) {
+        port.onMessage.addListener(function(msg) { // msg from popup is "get-stuff"
         let listenersForTab = [];
         if (selectedId !== -1 && selectedId !== null && typeof selectedId !== 'undefined' && tab_listeners[selectedId]) {
             listenersForTab = tab_listeners[selectedId].listeners;
         }
-		port.postMessage({listeners: listenersForTab});
-	});
+                port.postMessage({listeners: listenersForTab});
+        });
 });
