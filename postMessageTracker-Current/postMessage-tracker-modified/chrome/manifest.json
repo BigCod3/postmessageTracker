@@ -25,7 +25,11 @@
   "host_permissions": ["http://*/*", "https://*/*"],
   "web_accessible_resources": [
     {
-      "resources": ["injected.js", "prism/prism.js", "prism/prism.css"],
+      "resources": [
+        "injected.js",
+        "prism/prism.js",
+        "prism/prism.css"
+      ],
       "matches": ["<all_urls>"]
     }
   ]
