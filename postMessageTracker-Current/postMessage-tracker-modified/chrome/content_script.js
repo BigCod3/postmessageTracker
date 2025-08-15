@@ -94,7 +94,8 @@ var injectedJS = function(pushstate, msgeventlistener, msgporteventlistener) {
         let analysis = {
             originCheck: 'unverified',
             sinks: [],
-            rawListener: listener_str
+            rawListener: listener_str,
+            acceptsEventArgument: listener_func_param.length > 0
         };
         const commonEventVarNames = ['event', 'message', 'msg', 'evt'];
         let originCheckFound = false;
@@ -166,10 +167,20 @@ var injectedJS = function(pushstate, msgeventlistener, msgporteventlistener) {
                     taintedVariables.add(assignmentMatch[1]);
                 }
             }
+            // New: Add variables initialized with JSON.parse(event.data)
+            const jsonParseRegex = new RegExp('(?:var|let|const)\\s+([a-zA-Z_$][a-zA-Z0-9_$]*)\\s*=\\s*JSON\\.parse\\(\\s*' + dataParameterForRegex + '\\s*\\)\\s*;', 'g');
+            let jsonMatch;
+            while((jsonMatch = jsonParseRegex.exec(listener_str)) !== null) {
+                if (jsonMatch[1]) {
+                    taintedVariables.add(jsonMatch[1]);
+                }
+            }
         } else {
+            // Fallback if identifiedEventVar is not found (less likely for postMessage but good for robustness)
             dataParameterForRegex = '(?:event|message|msg|evt|[a-z])\\.data'.replace('.', '\\.');
         }
-        const dataRegex = new RegExp(dataParameterForRegex);
+        // const dataRegex = new RegExp(dataParameterForRegex); // Keep for direct usage if needed, but new logic is more comprehensive
+
         const sinkRegexes = {
             innerHTML: /(?:[^a-zA-Z0-9_]|^)innerHTML\s*=[^;]+(?:;|$)/g,
             outerHTML: /(?:[^a-zA-Z0-9_]|^)outerHTML\s*=[^;]+(?:;|$)/g,
@@ -188,20 +199,30 @@ var injectedJS = function(pushstate, msgeventlistener, msgporteventlistener) {
             while ((match = sinkRegexes[sinkType].exec(listener_str)) !== null) {
                 let snippet = match[0].trim();
                 let isPotentiallyControlled = false;
+
+                // Check against all tainted variables (including those from JSON.parse)
                 for (const taintedVar of taintedVariables) {
-                    let varUsageRegex;
-                    if (taintedVar.includes('.')) {
-                        varUsageRegex = new RegExp(taintedVar.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
-                    } else {
-                        varUsageRegex = new RegExp(`\\b${taintedVar}\\b`);
+                    let controlRegex;
+                    if (taintedVar.includes('.')) { // e.g., "event.data"
+                        // Matches "event.data", "event.data.foo", "event.data.foo.bar"
+                        controlRegex = new RegExp(taintedVar.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '(\\.[a-zA-Z_$][a-zA-Z0-9_$]*)*');
+                    } else { // e.g., "parsedData" (from JSON.parse) or "localCopy" (from let localCopy = event.data)
+                        // Matches "parsedData", "parsedData.foo", "localCopy", "localCopy.bar"
+                        controlRegex = new RegExp('\\b' + taintedVar + '\\b(\\.[a-zA-Z_$][a-zA-Z0-9_$]*)*');
                     }
-                    if (varUsageRegex.test(snippet)) {
+                    if (controlRegex.test(snippet)) {
                         isPotentiallyControlled = true;
-                        break;
+                        break; 
                     }
                 }
-                if (!isPotentiallyControlled && dataRegex.test(snippet)) {
-                     isPotentiallyControlled = true;
+
+                // Fallback: If no tainted variable explicitly matched, check for identifiedEventVar.data directly
+                // This is particularly for cases where event.data is used directly in a sink without prior assignment.
+                if (!isPotentiallyControlled && identifiedEventVar) {
+                    const directDataRegex = new RegExp(identifiedEventVar.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\.data' + '(\\.[a-zA-Z_$][a-zA-Z0-9_$]*)*');
+                    if (directDataRegex.test(snippet)) {
+                        isPotentiallyControlled = true;
+                    }
                 }
                 analysis.sinks.push({ type: sinkType, snippet: snippet, potentiallyControlled: isPotentiallyControlled });
             }
