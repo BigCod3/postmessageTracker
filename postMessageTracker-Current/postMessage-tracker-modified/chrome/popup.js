@@ -1,6 +1,5 @@
-// var port = chrome.extension.connect({ // For Manifest V2
-var port = chrome.runtime.connect({ // Preferred for Manifest V2, compatible with V3 service workers
-	name: "PostMessageTrackerComms"
+var port = chrome.runtime.connect({ // Connect to MV3 service worker
+        name: "PostMessageTrackerComms"
 });
 var currentTabId = null;
 
