@@ -167,8 +167,8 @@ var injectedJS = function(pushstate, msgeventlistener, msgporteventlistener) {
                     taintedVariables.add(assignmentMatch[1]);
                 }
             }
-            // New: Add variables initialized with JSON.parse(event.data)
-            const jsonParseRegex = new RegExp('(?:var|let|const)\\s+([a-zA-Z_$][a-zA-Z0-9_$]*)\\s*=\\s*JSON\\.parse\\(\\s*' + dataParameterForRegex + '\\s*\\)\\s*;', 'g');
+            // Track variables initialized with JSON.parse(event.data) even without declarations
+            const jsonParseRegex = new RegExp('(?:var|let|const)?\\s*([a-zA-Z_$][a-zA-Z0-9_$]*)\\s*=\\s*JSON\\.parse\\(\\s*' + dataParameterForRegex + '\\s*\\)\\s*;?', 'g');
             let jsonMatch;
             while((jsonMatch = jsonParseRegex.exec(listener_str)) !== null) {
                 if (jsonMatch[1]) {
@@ -191,7 +191,8 @@ var injectedJS = function(pushstate, msgeventlistener, msgporteventlistener) {
             setIntervalString: /setInterval\s*\(\s*(['"`]|(?:[a-zA-Z_$][a-zA-Z0-9_$]*\s*(?!\()))[^,]*,\s*\d+\s*\)(?:;|$)/g,
             locationAssignment: /(?:[^a-zA-Z0-9_]|^)location\s*(?:\.href|\.assign|\.replace)?\s*=[^;]+(?:;|$)/g,
             scriptSrcViaCreateElement: /document\.createElement\s*\(\s*['"]script['"]\s*\)[^;]*\.src\s*=[^;]+(?:;|$)/g,
-            aHrefJS: /document\.createElement\s*\(\s*['"]a['"]\s*\)[^;]*\.href\s*=\s*['"`]javascript:/ig
+            aHrefJS: /document\.createElement\s*\(\s*['"]a['"]\s*\)[^;]*\.href\s*=\s*['"`]javascript:/ig,
+            jsonParse: /JSON\.parse\s*\([^)]+\)/g
         };
         for (const sinkType in sinkRegexes) {
             let match;
